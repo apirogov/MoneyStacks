@@ -1,0 +1,110 @@
+#Moneystacks config and tracking file
+#------------------------------------
+#Comments are written after #,
+#Dates use Format YYYY-MM-DD
+#currency symbol in config is optional for amounts (convenience), no floating point numbers
+  
+ #indentation and whitespace is ignored
+
+#Stacks are created on usage. special stacks: main=default money stack, unnamed=external world stack(formalism)
+#Under the hood everything is just (recurring) Transfers on Stacks.
+
+#Transfer syntax (Transfer = single transaction)
+#Transfer [everything|AMOUNTVAL] [from STACKSRC] [to STACKDST] [on DATE] [: DESCRIPTION TEXT]
+
+#Macros syntax (Macro = recurring auto-generated transfer)
+#Macro [everything|AMOUNTVAL] [from STACKSRC] [to STACKDST] [on DAYOFMONTH]
+#       [start DATE] [end EDATE] [every NUMMONTHS] [: DESCRIPTION]
+
+#Default values:
+#AMOUNTVAL = 0
+#STACKSRC/DST = ""
+#DAYOFMONTH = 1
+#NUMMONTHS = 1
+#DATE = Origin
+#EDATE = (infinity)
+#DESCRIPTION = ""
+
+#value has positive sign = removed from SRC, added to DST, negative = vice versa
+#Not set stack means the money comes/goes from/to nowhere/the outside
+#NUMMONTHS has to be positive, DAYOFMONTH has to be valid day of month
+
+#Syntactic sugar / verbs:
+#----
+#Init AMOUNT
+#to: Transfer AMOUNT to main
+
+#Move AMOUNT [from SRC] [to STACK] [on DATE] [: DESC]
+#to: Transfer AMOUNT from SRC to STACK on DATE [: DESC]
+#def. SRC = main
+
+#In AMOUNT [to STACK] [on DATE] DESCRIPTION
+#to: Transfer amount AMOUNT to STACK on DATE text DESCRIPTION
+#def. STACK = main
+
+#Out AMOUNT [from STACK] [on DATE] DESCRIPTION
+#to: Transfer amount AMOUNT from STACK on DATE text DESCRIPTION
+#def. STACK = main
+
+#Regular real income/spendings from/to outside ("real world" transactions):
+#Regular AMOUNT [on DAYOFMONTH] [start SDATE] [end EDATE] [every NUMMONTHS] [: TEXT]
+#to: Macro amount AMOUNT to main on DAYOFMONTH start SDATE end EDATE every NUMMONTHS text NAME
+
+#Virtual stack auto-refill plans:
+#----
+#Save STACK AMOUNT [start DATE end EDATE every NUMMONTHS on DAYOFMONTH]
+#to: Macro amount AMOUNT from main to STACK ..
+
+#Limit STACK AMOUNT [start DATE end EDATE every NUMMONTHS on DAYOFMONTH]
+#to: Macro amount full from STACK to main ..
+#    Macro amount AMOUNT from main to STACK ..
+#------------------------------------
+
+#Obligatory origin date:
+Origin       2014-01-01 #start date
+
+#Initialize amounts:
+Init 10700€
+Move 6000 to someStack
+
+#IN:
+Regular 300€ on 15 : Mum
+Regular 120€ on 04 : Dad
+Regular 172€ on 27 end 2014-02-28 : Job 1
+Regular 360€ on 27 start 2014-04-01 end 2014-07-31 : Job 2
+
+#OUT:
+#no taxes to pay, insurance GKV/HPV over mom
+Regular -217€ on 5      : Rent
+Regular -40€  every 3   : Phone
+Regular -300€ every 6   : Semester fees
+Regular -15€  every 12  : Domain address
+
+#STACK MACROS:
+Limit 120€ House
+Limit 50€  Misc
+Save  50€  Big
+Save  20€  Gifts
+
+#----
+#Now all the single transfers
+#Added over moneystacks CLI interface or by hand
+#----
+Out 36€ on 2014-01-04 from House : Groceries
+Out 23 on 2014-01-11 from House : Groceries
+Out 31 on 2014-01-11 from Misc : Amazon stuff
+Out 30 on 2014-01-17 from House : Groceries
+Out 10 on 2014-01-26 from House : Another amazon thingy
+Out 20 on 2014-01-26 from House : Groceries
+Out 25 on 2014-01-31 from House : Groceries
+Out 8 on 2014-02-14 from Gifts : Little gift
+Out 15 on 2014-02-17 from House : Groceries
+Out 80 on 2014-02-17 : Dental care
+Out 15 on 2014-02-21 from House : Groceries
+Out 6 on 2014-02-22 : Donation Surespot
+Out 12 on 2014-02-28 from Gifts : For grandpa
+Out 9 on 2014-02-28 : Amazon LaTeX book
+Out 7 on 2014-02-28 from House : Groceries
+Out 10 on 2014-03-04 : Wikipedia donation
+In 160 on 2014-03-24 : Extra from mum
+In 200 on 2014-03-24 to Cash : Taken from account
