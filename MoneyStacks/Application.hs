@@ -1,4 +1,16 @@
 {-# LANGUAGE DoAndIfThenElse #-}
+{-|
+Module      : MoneyStacks.Application
+Description : Command line application interface for MoneyStacks
+Copyright   : (c) Anton Pirogov, 2014
+License     : MIT
+Stability   : experimental
+Portability : POSIX
+
+Here is a longer description of this module, containing some
+commentary with @some markup@.
+-}
+module MoneyStacks.Application where
 import MoneyStacks.Core
 import MoneyStacks.Parser
 
@@ -13,6 +25,9 @@ import Data.List (sort)
 
 -- TODO: Add QuickCheck/HUnit tests. Use tasty?
 
+-- |Entry point into the moneystacks command line tool.
+-- Verifies that a valid configuration file is passed, parses it,
+-- checks the passed action and delegates to 'evaluate'
 main :: IO ()
 main = do
   args <- getArgs
@@ -23,12 +38,17 @@ main = do
        exist <- doesFileExist filename
        if not valid || not exist then putStrLn $ filename++": Invalid filename or file does not exist!"
        else if command `notElem` ["stacks","show","add"] then putStrLn $ command++": Invalid command!"
-       else do file <- readFile filename
-               case parseMoneyConf filename file of
+       else do filestr <- readFile filename
+               case parseMoneyConf filename filestr of
                     Left e -> putStrLn $ prettyParseError e
                     Right conf -> evaluate conf command $ if command/="add" then rest else (filename:rest)
 
-evaluate :: MoneyConf -> String -> [String] -> IO ()
+-- |Gets the parsed config, a keyword with the action and the rest of the arguments.
+-- Executes the action or reports an error.
+evaluate :: MoneyConf -- ^ Already parsed configuration file
+         -> String    -- ^ The action to be executed (@stacks@, @show@ or @add@)
+         -> [String]  -- ^ Rest of the arguments (everything coming after the action)
+         -> IO ()
 evaluate conf "stacks" [] = do
   today <- getCurrentDay -- No date passed -> use today's date
   evaluate conf "stacks" [showGregorian today]
@@ -40,12 +60,12 @@ evaluate conf "stacks" dates = do
   then putStrLn "No valid dates given!"
   else mapM_ putStrLn $ zipWith (++)
                                 (map (\x -> showGregorian x++": ") dat)
-                                (map (\s-> show s ++ " Total: " ++ (show $ foldl (\sum (_,x)->sum+x) 0 s))
-                                    (map (calcStacksUntil conf) dat) )
+                                (map (\s -> show s ++ " Total: " ++ (show $ foldl (\acc (_,x)->acc+x) 0 s))
+                                                                   (map (calcStacksUntil conf) dat) )
 
 evaluate conf "show" [] = do
   today <- getCurrentDay --no dates given -> show from beginning of month until now
-  let (y,m,d) = toGregorian today
+  let (y,m,_) = toGregorian today
   evaluate conf "show" [showGregorian$fromGregorian y m 1,showGregorian today]
 
 evaluate conf "show" [start] = do
@@ -55,20 +75,21 @@ evaluate conf "show" [start] = do
 evaluate conf "show" [start,end] = do
   today <- getCurrentDay
   let from = parseDate today start
-      to = parseDate today end
-  if isNothing from || isNothing to
+      to   = parseDate today end
+  if any isNothing [from,to]
   then putStrLn "Invalid date(s) given!"
   else mapM_ putStrLn $ showTransfersFromTo conf from (fromJust to)
-evaluate conf "show" _ = putStrLn "Invalid command format!"
+evaluate _ "show" _ = putStrLn "Invalid command format!"
 
-evaluate conf "add" (filename:rest) = do -- add a transfer line with current date auto-set to the specified config file
+evaluate _ "add" (filename:rest) = do -- add a transfer line with current date auto-set to the specified config file
   today <- getCurrentDay
-  case argTransfer today $ foldl1 (\x y->x++" "++y) rest of
+  case argTransfer today $ foldl (\x y->x++" "++y) "" rest of
     Left e -> putStrLn $ prettyParseError e
     Right t -> appendFile filename $ show t ++ "\n"
 
-evaluate conf _ _ = putStrLn "Some strange error. This should not have happened!"
+evaluate _ _ _ = putStrLn "Some strange error. This should not have happened!"
 
+-- |Usage help text
 help = unlines [
         "Usage:"
       , "moneystacks FILE ACTION [OPTIONS]", "", "FILE: obligatory valid MoneyStacks configuration file", ""
@@ -78,7 +99,6 @@ help = unlines [
       , "add VALUE [from SOURCE_STACK to DEST_STACK : DESCRIPTION_TEXT]:"
       , "\tAdd a new transfer line to FILE, unset options will be set to default" ]
 
--- get current Day
-getCurrentDay = do today <- getCurrentTime
-                   return $ utctDay today
+-- |returns current Day
+getCurrentDay = getCurrentTime >>= \t -> return $ utctDay t
 
