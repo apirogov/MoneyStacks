@@ -18,7 +18,7 @@ data MoneyConf = MoneyConf { cOrigin :: Day -- ^This is the day where the macros
                            } deriving (Show,Eq)
 
 type StackName = String
-type Stack = (StackName, Integer)
+type Stack = (StackName, Integer) -- ^Must not contain a stack with StackName "" (used internally)
 
 -- |A Transfer is an atomic value transaction between stacks or a stack with the outside world
 -- Money is coming from / going to the outside world (leaving the system)
@@ -56,7 +56,7 @@ data Macro = Macro { mVal  :: Maybe Integer
                    , mSrc :: StackName
                    , mDst :: StackName
                    , mDay  :: Integer    -- ^Day of Month (1-31)
-                   , mStart :: Maybe Day -- ^optional start date. If unset, Origin is used in expansion
+                   , mStart :: Maybe Day -- ^optional start date (day ignored). If unset, Origin is used in expansion
                    , mEnd :: Maybe Day   -- ^optional end date. If unset, this macro has no end
                    , mEvery :: Integer   -- ^Number of months (interval between transactions)
                    , mText :: String     -- ^Description text for each transfer spawned from this macro
@@ -78,7 +78,7 @@ nullMoneyConf = MoneyConf{cOrigin=nullDate,cTransfers=[]}
 -- generates from given start or origin to given end or infinity
 expandMacro :: Day -> Macro -> [Transfer]
 expandMacro s m
- | mEvery m <= 0 || mDay m < 1 || mDay m > 31 = [] -- invalid arguments
+ | mEvery m < 1 || mDay m < 1 || mDay m > 31 = [] -- invalid arguments
  | otherwise = dropWhile beforeBeginning . takeWhile notAfterEnd
              $ iterate (incTrans $ mEvery m) firstTrans
       where beforeBeginning curr = tDate curr < s
@@ -106,17 +106,20 @@ applyTransfer :: [Stack] -> Transfer -> [Stack]
 applyTransfer s t = sort . filter ((/= 0) . snd) . filter ((/= "") . fst)
                   $ dst':src':(filter (not . isOldStack) s)
   where getStackBy field = fromMaybe (field t,0) $ find (\x -> fst x == field t) s
-        addToStack st amount = (fst st, snd st + amount)
-        src = getStackBy tSrc
-        dst = getStackBy tDst
+        addToStack (name,value) amount = (name, value+amount)
         isOldStack x = x==src || x==dst
+        src = getStackBy tSrc -- old vals
+        dst = getStackBy tDst
         val = fromMaybe (snd src) $ tVal t
-        src' = addToStack src (-val)
+        src' = addToStack src (-val) -- new vals
         dst' = addToStack dst val
 
 -- |Apply an (infinite) list of transfers until a given day and return stacks
 applyUntil :: Day -> [Transfer] -> [Stack]
 applyUntil d t = foldl applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
+
+-- Same as applyUntil, but returns all intermediate results. Might be useful for debugging:
+-- applyUntil' d t = scanl applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
 
 --------------------------------
 -- MoneyConf interface functions
@@ -131,47 +134,3 @@ showTransfersFromTo c Nothing d = map (showTransfer True) $ takeWhile (\x -> tDa
 showTransfersFromTo c (Just s) d = map (showTransfer True) $ dropWhile (\x -> tDate x < s)
                                             $ takeWhile (\x -> tDate x <= d) $ cTransfers c
 
-------------------------------
--- Same as applyUntil, but returns all intermediate results
-
--- applyUntil' d t = scanl applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
-
--- generate human readable log for each applied transfer
-
--- generateLog d t = putStrLn $ unlines
---                 $ zipWith (\a b -> (show $ tDate a) ++ ": " ++ tText a ++ " - " ++ b) t
---                 $ zipWith3 (\a b c -> show a ++ b ++ show c) stacks (repeat " -> ") (tail stacks)
---   where stacks = applyUntil' d t
-
--- Testing some normal and special cases.
--- try applyUntil' (should return empty stack list back)
-
--- defStartDate = fromGregorian 2014 01 01
--- dummyTransfer = Transfer { tVal=Just 0, tSrc="", tDst="", tDate=defStartDate, tText=""}
--- transfers = [ dummyTransfer { tVal=Just 100, tSrc="main", tDst="test"}
---   , dummyTransfer
---   , dummyTransfer { tVal=Nothing, tSrc="", tDst=""}
---   , dummyTransfer { tVal=Nothing, tSrc="", tDst="main"}
---   , dummyTransfer { tVal=Nothing, tSrc="test", tDst="main"}
---   , dummyTransfer { tVal=Just 50, tSrc="main", tDst=""}
---   , dummyTransfer { tVal=Just (-50), tSrc="main", tDst=""}
---   , dummyTransfer { tVal=Just 50, tSrc="", tDst="main"}
---   , dummyTransfer { tVal=Just (-50), tSrc="", tDst="main"}
---   , dummyTransfer { tVal=Just 10, tSrc="", tDst="main"}
---   , dummyTransfer { tVal=Nothing, tSrc="main", tDst=""}
---   ]
-
--- Testing macro expansion (try generateLog)
-
--- income = Macro {mVal=Just 375,mSrc="",mDst="main",mDay=3,
---   mStart=Just $ fromGregorian 2014 04 1, mEnd=Just $ fromGregorian 2014 07 31
---   ,mEvery=1,mText="Job Lohn"}
--- mummoney = Macro {mVal=Just 300,mSrc="",mDst="main",mDay=15,
---   mStart=Nothing, mEnd=Nothing,mEvery=1,mText="Mum Geld"}
--- living = Macro {mVal=Just 217,mSrc="main",mDst="",mDay=1,
---   mStart=Nothing, mEnd=Nothing,mEvery=1,mText="Wohnung kosten"}
--- phone = Macro {mVal=Just (-40),mSrc="",mDst="main",mDay=3,
---   mStart=Nothing, mEnd=Nothing,mEvery=3,mText="Handy Kosten"}
--- savegifts = Macro {mVal=Just 50,mSrc="main",mDst="gifts",mDay=1,
---   mStart=Nothing, mEnd=Nothing,mEvery=1,mText="Save for Gifts"}
--- transfers2 = foldl merge [] $ map (expandMacro defStartDate) [income,mummoney,living,phone,savegifts]

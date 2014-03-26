@@ -63,7 +63,7 @@ transfer = do string "Transfer"
               wordsep1
               val <- optVerbVal
               opts <- transferOptsWith transferMods
-              let trans = foldl applyTOpt nullTransfer{tVal=val} opts
+              let trans = applyTOpts opts nullTransfer{tVal=val}
               return $ AtomT trans
               <?> "Transfer"
 

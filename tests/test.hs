@@ -1,7 +1,12 @@
 module Main where
+import Test.Tasty
 
-import System.Exit (exitFailure)
+import Tests.Core
+import Tests.Parser
+import Tests.Application
 
-main = do
-    putStrLn "This test always fails!"
-    exitFailure
+main :: IO ()
+main = defaultMain tests
+
+tests :: TestTree
+tests = testGroup "Tests" [coreTests, parserTests, applicationTests]
