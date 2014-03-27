@@ -10,7 +10,7 @@ module MoneyStacks.Core
 where
 import Data.Maybe (fromMaybe,isNothing)
 import Data.Function (on)
-import Data.List (find, sort)
+import qualified Data.Map as M
 import Data.Time.Calendar
 
 -- |MoneyConf is the structure generated from a MoneyStacks configuration file by the parser
@@ -104,16 +104,11 @@ merge (x:xs) (y:ys) = if x<=y then x:(merge xs (y:ys)) else y:(merge (x:xs) ys)
 
 -- |Apply a single transfer to a state of stacks, only keep named non-empty stacks
 applyTransfer :: [Stack] -> Transfer -> [Stack]
-applyTransfer s t = sort . filter ((/= 0) . snd) . filter ((/= "") . fst)
-                  $ dst':src':(filter (not . isOldStack) s)
-  where getStackBy field = fromMaybe (field t,0) $ find (\x -> fst x == field t) s
-        addToStack (name,value) amount = (name, value+amount)
-        isOldStack x = x==src || x==dst
-        src = getStackBy tSrc -- old vals
-        dst = getStackBy tDst
-        val = fromMaybe (snd src) $ tVal t
-        src' = addToStack src (-val) -- new vals
-        dst' = addToStack dst val
+applyTransfer s t = M.toList . M.filter (/= 0) . M.delete "" $ moveMoney s'
+  where s' = M.fromList s
+        moveMoney = M.insertWith (+) (tSrc t) (-val) . M.insertWith (+) (tDst t) val
+        val = fromMaybe sourceVal $ tVal t
+        sourceVal = fromMaybe 0 (M.lookup (tSrc t) s')
 
 -- |Apply an (infinite) list of transfers until a given day and return stacks
 applyUntil :: Day -> [Transfer] -> [Stack]
