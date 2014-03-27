@@ -1,11 +1,5 @@
 MoneyStacks
 ===========
-Copyright (C) 2014 Anton Pirogov
-Licensed under the MIT License
-
-Overview
---------
-
 Moneystacks is a personal money management tool.
 The idea is based around the concept of money stacks for different
 purposes and contexts (as you would stack money up in the real world).
@@ -73,3 +67,15 @@ life and guide me in my spending behaviour.
 
 And as it is a mere approximation, from time to time you might have to
 add "correction transactions", if the macros and the real world drift apart.
+
+Installation
+------------
+<pre>
+git clone https://github.com/apirogov/MoneyStacks.git
+cd MoneyStacks
+cabal install
+</pre>
+
+<b>Build documentation:</b> <pre>cabal haddock</pre>
+
+<b>Run test suite:</b> <pre>cabal test --show-details=always</pre>

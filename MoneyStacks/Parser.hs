@@ -6,8 +6,16 @@ Copyright   : (c) Anton Pirogov, 2014
 License     : MIT
 Stability   : experimental
 Portability : POSIX
+
+Also see <example_config.txt> to see how a configuration file has to look like.
 -}
-module MoneyStacks.Parser where
+module MoneyStacks.Parser (
+  parseMoneyConf
+, parseArgDate
+, parseArgTransfer
+, getParseErrors
+, prettyParseError
+) where
 import Text.Parsec
 import Text.Parsec.Error
 import Text.Parsec.Pos (initialPos)
@@ -21,7 +29,6 @@ import MoneyStacks.Core
 -- which is later to be merged into the MoneyConf
 data ConfAtom = AtomT Transfer | AtomM [Macro] | AtomO Day | AtomEmpty
                 deriving (Show,Eq)
-
 isOrigin (AtomO _) = True
 isOrigin _ = False
 
@@ -56,12 +63,12 @@ origin = do string "Origin"
             return $ AtomO d
             <?> "Origin"
 
--- |Tries to read a value (number or the word everything), if none given returns Just 0
-optVerbVal = option (Just 0) $ choice [try $ string "everything" >> return Nothing, value >>= return.Just]
+-- |Tries to read a value (number or the word everything)
+valOrAll = choice [try $ string "everything" >> return Nothing, value >>= return.Just]
 
 transfer = do string "Transfer"
               wordsep1
-              val <- optVerbVal
+              val <- valOrAll
               opts <- transferOptsWith transferMods
               let trans = applyTOpts opts nullTransfer{tVal=val}
               return $ AtomT trans
@@ -94,7 +101,7 @@ applyTOpts = flip $ foldl applyTOpt
 
 macro = do string "Macro"
            wordsep1
-           val <- optVerbVal
+           val <- valOrAll
            opts <- macroOptsWith macroMods
            let m = foldl applyMOpt nullMacro{mVal=val} opts
            return $ AtomM [m]
@@ -137,10 +144,10 @@ applyMOpts = flip $ foldl applyMOpt
 -- Expects the keyword name, a base transfer with preset default values and a list of allowed
 -- modifiers for this specific keyword (as you may wish to limit them for different cases)
 verb vname base mods = do string vname >> wordsep1
-                          val <- value
+                          val <- valOrAll
                           opts <- transferOptsWith mods
                           notFollowedBy alphaNum
-                          let trans = applyTOpts opts base{tVal=Just val}
+                          let trans = applyTOpts opts base{tVal=val}
                           return $ AtomT trans
                           <?> vname
 
@@ -150,10 +157,10 @@ verb_in   = verb "In"   nullTransfer{tDst="main"} (transferMods\\["from"])
 verb_out  = verb "Out"  nullTransfer{tSrc="main"} (transferMods\\["to"])
 
 verb_regular = do string "Regular" >> wordsep1
-                  val <- value
+                  val <- valOrAll
                   opts <- macroOptsWith macroMods
                   wordsep
-                  let m = applyMOpts opts nullMacro{mVal=Just val,mDst="main"}
+                  let m = applyMOpts opts nullMacro{mVal=val,mDst="main"}
                   return $ AtomM [m]
                   <?> "Regular"
 
@@ -221,22 +228,32 @@ mergeAtoms c (AtomO d) = c{cOrigin=d}
 mergeAtoms c (AtomT t) = c{cTransfers=merge (cTransfers c) [t']}
   where t' = if cOrigin c == nullDate || tDate t /= nullDate then t else t{tDate=cOrigin c}
 mergeAtoms c (AtomM ms) = if cOrigin c == nullDate
-                          then c -- cannot expand macros if no origin specified previously->discard
+                          then c -- cannot expand macros if no origin specified previously -> ignore
                           else c{ cTransfers=foldl merge (cTransfers c)
                                                  $ map (expandMacro (cOrigin c)) ms }
 
 
--- |The heart of the parser - read a configuration file string, spit out moneystacks config
+-- |The heart of the parser - read filename, a configuration file string, spit out moneystacks config
 parseMoneyConf :: String -> String -> Either ParseError MoneyConf
-parseMoneyConf filename input = do
-    atoms <- parse file filename input
-    return $ foldl mergeAtoms nullMoneyConf atoms
+parseMoneyConf filename input =
+  case parse file filename input of
+  Left e -> Left e
+  Right atoms -> do
+    let numOrigins = length $ filter isOrigin atoms
+        firstAtomO = (numOrigins >= 1) && (isOrigin $ head $ filter (/=AtomEmpty) atoms)
+    if not firstAtomO
+      then Left $ newErrorMessage (SysUnExpect "origin must be first statement in configuration!") (initialPos filename)
+      else if numOrigins>1
+           then Left $ newErrorMessage (SysUnExpect "multiple Origins found in configuration!") (initialPos filename)
+           else Right $ foldl mergeAtoms nullMoneyConf atoms
 
 -- |accept partial dates on command line and complete missing fields from other date (today's date to be supplied)
-parseDate base str = case parse partialDate "(parseDate)" str of
-                     Left _ -> Nothing
-                     Right day -> let l = map fromIntegral $ zipWith (\a b-> if a==0 then b else a) day base'
-                                  in Just $ fromGregorian (l!!0) (l!!1) (l!!2)
+parseArgDate :: Day -> String -> Maybe Day
+parseArgDate base str =
+  case parse partialDate "(parseDate)" str of
+       Left _ -> Nothing
+       Right day -> let l = map fromIntegral $ zipWith (\a b-> if a==0 then b else a) day base'
+                    in  Just $ fromGregorian (l!!0) (l!!1) (l!!2)
   where (y,m,d) = toGregorian base
         base'   = [y,fromIntegral m,fromIntegral d]
 
@@ -245,27 +262,33 @@ partialDate = do
   num1 <- number
   num2 <- optionMaybe restInt
   num3 <- optionMaybe restInt
+  wordsep1 <|> (eof >> return "")
   return $ reverse $ take 3 $ catMaybes [num3,num2,Just num1] ++ zero
   <?> "date"
   where restInt = char '-' >> number
         zero = 0:zero
 
 -- | like statement/verb, but only accepts single transfers
-parseArgTransfer = do wordsep
-                      t <- choice (fmap try [transfer,verb_move,verb_in,verb_out])
-                      notFollowedBy alphaNum
-                      return t
+argTransfer = do wordsep
+                 t <- choice (fmap try [transfer,verb_move,verb_in,verb_out])
+                 notFollowedBy alphaNum
+                 return t
 
 -- | parse a transfer passed over the command line to be appended from argument.
 -- Takes a base day to be used if no date is specified (today's date)
-argTransfer :: Day -> String -> Either ParseError Transfer
-argTransfer day str = case parse parseArgTransfer parseSrcName str of
-                        Left err -> Left err
-                        -- If no date is supplied on the command line, automatically use passed today's date
-                        Right (AtomT tr) -> Right $ if tDate tr==nullDate then tr{tDate = day} else tr
-                        Right _ -> Left $ newErrorUnknown $ initialPos parseSrcName -- should never happen
+parseArgTransfer :: Day -> String -> Either ParseError Transfer
+parseArgTransfer day str =
+  case parse argTransfer parseSrcName str of
+    Left err -> Left err
+    -- If no date is supplied on the command line, automatically use passed today's date
+    Right (AtomT tr) -> Right $ if tDate tr==nullDate then tr{tDate = day} else tr
+    Right _ -> Left $ newErrorUnknown $ initialPos parseSrcName -- should never happen
   where parseSrcName = "command line argument"
 
+-- | join messages from ParseError
+getParseErrors :: ParseError -> String
 getParseErrors = (showErrorMessages "or" "unknown" "expecting" "unexpected" "end of input").errorMessages
--- |generate an error message from a ParseError
+
+-- | generate an error message from a ParseError (including error location)
+prettyParseError :: ParseError -> String
 prettyParseError err = "parse error in " ++ (show $ errorPos err) ++ ": " ++ getParseErrors err

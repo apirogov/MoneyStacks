@@ -10,10 +10,10 @@
 #Under the hood everything is just (recurring) Transfers on Stacks.
 
 #Transfer syntax (Transfer = single transaction)
-#Transfer [everything|AMOUNTVAL] [from STACKSRC] [to STACKDST] [on DATE] [: DESCRIPTION TEXT]
+#Transfer everything|AMOUNTVAL [from STACKSRC] [to STACKDST] [on DATE] [: DESCRIPTION TEXT]
 
 #Macros syntax (Macro = recurring auto-generated transfer)
-#Macro [everything|AMOUNTVAL] [from STACKSRC] [to STACKDST] [on DAYOFMONTH]
+#Macro everything|AMOUNTVAL [from STACKSRC] [to STACKDST] [on DAYOFMONTH]
 #       [start DATE] [end EDATE] [every NUMMONTHS] [: DESCRIPTION]
 
 #Default values:
@@ -60,37 +60,37 @@
 #    Macro amount AMOUNT from main to STACK ..
 #------------------------------------
 
-#Obligatory origin date:
+#Obligatory origin date (has to be first statement):
 Origin       2014-01-01 #start date
 
 #Initialize amounts:
-Init 10700€
+Init 10700$
 Move 6000 to someStack
 
 #IN:
-Regular 300€ on 15 : Mum
-Regular 120€ on 04 : Dad
-Regular 172€ on 27 end 2014-02-28 : Job 1
-Regular 360€ on 27 start 2014-04-01 end 2014-07-31 : Job 2
+Regular 300$ on 15 : Mum
+Regular 120$ on 04 : Dad
+Regular 172$ on 27 end 2014-02-28 : Job 1
+Regular 360$ on 27 start 2014-04-01 end 2014-07-31 : Job 2
 
 #OUT:
 #no taxes to pay, insurance GKV/HPV over mom
-Regular -217€ on 5      : Rent
-Regular -40€  every 3   : Phone
-Regular -300€ every 6   : Semester fees
-Regular -15€  every 12  : Domain address
+Regular -217$ on 5      : Rent
+Regular -40$  every 3   : Phone
+Regular -300$ every 6   : Semester fees
+Regular -15$  every 12  : Domain address
 
 #STACK MACROS:
-Limit 120€ House
-Limit 50€  Misc
-Save  50€  Big
-Save  20€  Gifts
+Limit 120$ House
+Limit 50$  Misc
+Save  50$  Big
+Save  20$  Gifts
 
 #----
 #Now all the single transfers
 #Added over moneystacks CLI interface or by hand
 #----
-Out 36€ on 2014-01-04 from House : Groceries
+Out 36$ on 2014-01-04 from House : Groceries
 Out 23 on 2014-01-11 from House : Groceries
 Out 31 on 2014-01-11 from Misc : Amazon stuff
 Out 30 on 2014-01-17 from House : Groceries

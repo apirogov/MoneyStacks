@@ -37,8 +37,8 @@ main = do
        let (filename:command:rest) = args
        let valid = isValid filename
        exist <- doesFileExist filename
-       if not valid || not exist then errExit $ filename++": Invalid filename or file does not exist!"
-       else if command `notElem` ["stacks","show","add"] then errExit $ command++": Invalid command!"
+       if not valid || not exist then errExit $ errInvalidFile filename
+       else if command `notElem` ["stacks","show","add"] then errExit $ errInvalidCommand command
        else do filestr <- readFile filename
                case parseMoneyConf filename filestr of
                     Left e -> putStrLn $ prettyParseError e
@@ -57,13 +57,13 @@ evaluate conf "stacks" [] = do
 
 evaluate conf "stacks" dates = do
   today <- getCurrentDay
-  let dat = sort $ mapMaybe (parseDate today) dates
+  let dat = sort $ mapMaybe (parseArgDate today) dates
   if null dat
   then errExit "No valid dates given!"
-  else mapM_ putStrLn $ zipWith (++)
-                                (map (\x -> showGregorian x++": ") dat)
-                                (map (\s -> show s ++ " Total: " ++ (show $ foldl (\acc (_,x)->acc+x) 0 s))
-                                                                   (map (calcStacksUntil conf) dat) )
+  else mapM_ putStrLn
+       $ zipWith (++) (map (\x -> showGregorian x++": ") dat)
+                      (map (\s -> show s ++ " Total: " ++ (show $ foldl (\acc (_,x)->acc+x) 0 s))
+                           (map (calcStacksUntil conf) dat) )
 
 --no dates given -> show from beginning of month until now
 evaluate conf "show" [] = do
@@ -78,21 +78,21 @@ evaluate conf "show" [start] = do
 
 evaluate conf "show" [start,end] = do
   today <- getCurrentDay
-  let from = parseDate today start
-      to   = parseDate today end
+  let from = parseArgDate today start
+      to   = parseArgDate today end
   if any isNothing [from,to]
-  then errExit "Invalid date(s) given!"
+  then errExit errInvalidDates
   else mapM_ putStrLn $ showTransfersFromTo conf from (fromJust to)
-evaluate _ "show" _ = errExit "Invalid command format!"
+evaluate _ "show" args = errExit $ errInvalidCommand $ concat $ intersperse " " ("show":args)
 
 -- add a transfer line with current date auto-set to the specified config file
 evaluate _ "add" (filename:rest) = do
   today <- getCurrentDay
-  case argTransfer today $ concat $ intersperse " " rest of
+  case parseArgTransfer today $ concat $ intersperse " " rest of
     Left e -> putStrLn $ prettyParseError e
     Right t -> appendFile filename $ show t ++ "\n"
 
-evaluate _ _ _ = errExit "Some strange error. This should not have happened!"
+evaluate _ _ _ = errExit errUnknown
 
 -- |Usage help text
 help = unlines [
@@ -109,3 +109,8 @@ getCurrentDay = getCurrentTime >>= \t -> return $ utctDay t
 
 -- |Show an error message and terminate
 errExit str = putStrLn str >> exitFailure
+
+errUnknown = "Unknown error. This should not have happened! If you can reproduce it, please file a bug report!"
+errInvalidDates = "Invalid date(s) given!"
+errInvalidFile f = "Invalid filename or file does not exist: "++f
+errInvalidCommand c =  "Invalid command" ++ if not $ null c then ": "++c else ""

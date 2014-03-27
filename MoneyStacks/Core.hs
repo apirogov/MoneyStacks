@@ -6,7 +6,8 @@ License     : MIT
 Stability   : experimental
 Portability : POSIX
 -}
-module MoneyStacks.Core where
+module MoneyStacks.Core
+where
 import Data.Maybe (fromMaybe,isNothing)
 import Data.Function (on)
 import Data.List (find, sort)
@@ -17,8 +18,8 @@ data MoneyConf = MoneyConf { cOrigin :: Day -- ^This is the day where the macros
                            , cTransfers :: [Transfer] -- ^This is the (infinite) chronological list of transfers collected by the parser
                            } deriving (Show,Eq)
 
-type StackName = String
-type Stack = (StackName, Integer) -- ^Must not contain a stack with StackName "" (used internally)
+type StackName = String -- ^A stack name is just a string
+type Stack = (StackName, Integer) -- ^Must not contain a stack with empty StackName (used internally)
 
 -- |A Transfer is an atomic value transaction between stacks or a stack with the outside world
 -- Money is coming from / going to the outside world (leaving the system)
