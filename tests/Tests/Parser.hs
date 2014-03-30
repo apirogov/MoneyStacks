@@ -39,7 +39,7 @@ testParseArgTransferFail = testCase "argTransfer - test some invalid transfer ar
                          ])
 
 testParseArgTransferSuccess = testCase "argTransfer - test some valid transfer arguments"
-  $ [] @=? (map getParseErrors $ lefts $ map (\str -> parseArgTransfer baseDate str)
+  $ [] @=? (map show $ lefts $ map (\str -> parseArgTransfer baseDate str)
                          [ "Out 100€ from House", "In 50$ : Some income"
                          , "Move everything from main to blub #just a commment"
                          , "Out 100 on 2014-01-01", "In 20 to misc #ignored comment"
@@ -55,7 +55,7 @@ testParseConfFail = testCase "parseMoneyConf - test some invalid inputs"
                          ])
 
 testParseConfSuccess = testCase "parseMoneyConf - test valid inputs with whitespace"
-  $ [] @=? (map getParseErrors $ lefts $ map (\str -> parseMoneyConf "(test input)" str)
+  $ [] @=? (map show $ lefts $ map (\str -> parseMoneyConf "(test input)" str)
                          [ " \t\n #blub\n #empty line with comment\n#another comment\nOrigin 2014-01-01"
                          , " Origin 2014-01-01 #start date\nInit 100€\n\tMove everything  to\tmain\t #lol"
                          ])

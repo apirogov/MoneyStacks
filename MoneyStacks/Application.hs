@@ -41,7 +41,7 @@ main = do
        else if command `notElem` ["stacks","show","add"] then errExit $ errInvalidCommand command
        else do filestr <- readFile filename
                case parseMoneyConf filename filestr of
-                    Left e -> putStrLn $ prettyParseError e
+                    Left e -> print e
                     Right conf -> evaluate conf command $ if command/="add" then rest else (filename:rest)
 
 -- |Gets the parsed config, a keyword with the action and the rest of the arguments.
@@ -89,7 +89,7 @@ evaluate _ "show" args = errExit $ errInvalidCommand $ concat $ intersperse " " 
 evaluate _ "add" (filename:rest) = do
   today <- getCurrentDay
   case parseArgTransfer today $ concat $ intersperse " " rest of
-    Left e -> putStrLn $ prettyParseError e
+    Left e -> print e
     Right t -> appendFile filename $ show t ++ "\n"
 
 evaluate _ _ _ = errExit errUnknown

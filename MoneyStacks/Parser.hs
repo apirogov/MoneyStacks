@@ -13,8 +13,6 @@ module MoneyStacks.Parser (
   parseMoneyConf
 , parseArgDate
 , parseArgTransfer
-, getParseErrors
-, prettyParseError
 ) where
 import Text.Parsec
 import Text.Parsec.Error
@@ -285,10 +283,3 @@ parseArgTransfer day str =
     Right _ -> Left $ newErrorUnknown $ initialPos parseSrcName -- should never happen
   where parseSrcName = "command line argument"
 
--- | join messages from ParseError
-getParseErrors :: ParseError -> String
-getParseErrors = (showErrorMessages "or" "unknown" "expecting" "unexpected" "end of input").errorMessages
-
--- | generate an error message from a ParseError (including error location)
-prettyParseError :: ParseError -> String
-prettyParseError err = "parse error in " ++ (show $ errorPos err) ++ ": " ++ getParseErrors err
