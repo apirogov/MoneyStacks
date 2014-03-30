@@ -23,8 +23,7 @@ import Data.Time.Clock (utctDay, getCurrentTime)
 import Data.Time.Calendar (showGregorian,toGregorian,fromGregorian)
 import Data.Maybe (isNothing, fromJust, mapMaybe)
 import Data.List (sort,intersperse)
-
--- TODO: Add QuickCheck/HUnit tests. Use tasty?
+import Control.Monad (when, unless,zipWithM_)
 
 -- |Entry point into the moneystacks command line tool.
 -- Verifies that a valid configuration file is passed, parses it,
@@ -32,17 +31,23 @@ import Data.List (sort,intersperse)
 main :: IO ()
 main = do
   args <- getArgs
-  if (length args) < 2 then putStrLn help
-  else do
-       let (filename:command:rest) = args
-       let valid = isValid filename
-       exist <- doesFileExist filename
-       if not valid || not exist then errExit $ errInvalidFile filename
-       else if command `notElem` ["stacks","show","add"] then errExit $ errInvalidCommand command
-       else do filestr <- readFile filename
-               case parseMoneyConf filename filestr of
-                    Left e -> print e
-                    Right conf -> evaluate conf command $ if command/="add" then rest else (filename:rest)
+
+  when (length args < 2)
+    (putStrLn help >> exitSuccess)
+
+  let (filename:command:rest) = args
+  let valid = isValid filename
+  exist <- doesFileExist filename
+
+  unless (valid && exist) $
+    error $ errInvalidFile filename
+  when (command `notElem` ["stacks","show","add"]) $
+    error $ errInvalidCommand command
+
+  filestr <- readFile filename
+  case parseMoneyConf filename filestr of
+    Left e     -> error $ show e
+    Right conf -> evaluate conf command $ if command/="add" then rest else (filename:rest)
 
 -- |Gets the parsed config, a keyword with the action and the rest of the arguments.
 -- Executes the action or reports an error.
@@ -50,6 +55,7 @@ evaluate :: MoneyConf -- ^ Already parsed configuration file
          -> String    -- ^ The action to be executed (@stacks@, @show@ or @add@)
          -> [String]  -- ^ Rest of the arguments (everything coming after the action)
          -> IO ()
+
 -- No date passed -> use today's date
 evaluate conf "stacks" [] = do
   today <- getCurrentDay
@@ -57,19 +63,23 @@ evaluate conf "stacks" [] = do
 
 evaluate conf "stacks" dates = do
   today <- getCurrentDay
-  let dat = sort $ mapMaybe (parseArgDate today) dates
-  if null dat
-  then errExit "No valid dates given!"
-  else mapM_ putStrLn
-       $ zipWith (++) (map (\x -> showGregorian x++": ") dat)
-                      (map (\s -> show s ++ " Total: " ++ (show $ foldl (\acc (_,x)->acc+x) 0 s))
-                           (map (calcStacksUntil conf) dat) )
+  let dates' = sort $ mapMaybe (parseArgDate today) dates
+      stacks = map (calcStacksUntil conf) dates'
+  when (null dates')
+    (error "No valid dates given!")
+  zipWithM_ (\d s -> do
+    putStr $ showGregorian d++": "
+    putStr $ show s
+    putStr " Total: "
+    print $ sum $ map snd s
+    ) dates' stacks
 
 --no dates given -> show from beginning of month until now
 evaluate conf "show" [] = do
   today <- getCurrentDay
   let (y,m,_) = toGregorian today
-  evaluate conf "show" [showGregorian$fromGregorian y m 1,showGregorian today]
+  evaluate conf "show" [ showGregorian $ fromGregorian y m 1
+                       , showGregorian today]
 
 -- one date assumed as start date, now as end date
 evaluate conf "show" [start] = do
@@ -80,19 +90,20 @@ evaluate conf "show" [start,end] = do
   today <- getCurrentDay
   let from = parseArgDate today start
       to   = parseArgDate today end
-  if any isNothing [from,to]
-  then errExit errInvalidDates
-  else mapM_ putStrLn $ showTransfersFromTo conf from (fromJust to)
-evaluate _ "show" args = errExit $ errInvalidCommand $ concat $ intersperse " " ("show":args)
+  when (any isNothing [from,to]) $
+    error errInvalidDates
+  mapM_ putStrLn $ showTransfersFromTo conf from (fromJust to)
+
+evaluate _ "show" args = error $ errInvalidCommand $ concat $ intersperse " " ("show":args)
 
 -- add a transfer line with current date auto-set to the specified config file
 evaluate _ "add" (filename:rest) = do
   today <- getCurrentDay
-  case parseArgTransfer today $ concat $ intersperse " " rest of
-    Left e -> print e
+  case parseArgTransfer today $ (concat.intersperse " ") rest of
+    Left e  -> error $ show e
     Right t -> appendFile filename $ show t ++ "\n"
 
-evaluate _ _ _ = errExit errUnknown
+evaluate _ _ _ = error errUnknown
 
 -- |Usage help text
 help = unlines [
@@ -107,9 +118,7 @@ help = unlines [
 -- |returns current Day
 getCurrentDay = getCurrentTime >>= \t -> return $ utctDay t
 
--- |Show an error message and terminate
-errExit str = putStrLn str >> exitFailure
-
+-- Error messages
 errUnknown = "Unknown error. This should not have happened! If you can reproduce it, please file a bug report!"
 errInvalidDates = "Invalid date(s) given!"
 errInvalidFile f = "Invalid filename or file does not exist: "++f
