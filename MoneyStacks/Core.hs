@@ -12,6 +12,7 @@ import Data.Maybe (fromMaybe,isNothing)
 import Data.Function (on)
 import qualified Data.Map as M
 import Data.Time.Calendar
+import Data.List (foldl')
 
 -- |MoneyConf is the structure generated from a MoneyStacks configuration file by the parser
 data MoneyConf = MoneyConf { cOrigin :: Day -- ^This is the day where the macros get expanded from and also default fallback day
@@ -112,7 +113,7 @@ applyTransfer s t = M.toList . M.filter (/= 0) . M.delete "" $ moveMoney s'
 
 -- |Apply an (infinite) list of transfers until a given day and return stacks
 applyUntil :: Day -> [Transfer] -> [Stack]
-applyUntil d t = foldl applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
+applyUntil d t = foldl' applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
 
 -- Same as applyUntil, but returns all intermediate results. Might be useful for debugging:
 -- applyUntil' d t = scanl applyTransfer [] $ takeWhile (\x -> tDate x <= d) t

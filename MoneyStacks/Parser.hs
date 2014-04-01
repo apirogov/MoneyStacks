@@ -19,7 +19,7 @@ import Text.Parsec.Error
 import Text.Parsec.Pos (initialPos)
 import Data.Time.Calendar
 import Data.Maybe (isNothing, catMaybes)
-import Data.List ((\\))
+import Data.List ((\\), foldl')
 
 import MoneyStacks.Core
 
@@ -95,13 +95,13 @@ applyTOpt t ("to", Right n) = t {tDst=n}
 applyTOpt t ("on", Left d) = t {tDate=d}
 applyTOpt t _ = t -- everything else is unknown
 -- |apply list of modifiers to a transfer (helper function for different keywords)
-applyTOpts = flip $ foldl applyTOpt
+applyTOpts = flip $ foldl' applyTOpt
 
 macro = do string "Macro"
            wordsep1
            val <- valOrAll
            opts <- macroOptsWith macroMods
-           let m = foldl applyMOpt nullMacro{mVal=val} opts
+           let m = foldl' applyMOpt nullMacro{mVal=val} opts
            return $ AtomM [m]
            <?> "Macro"
 
@@ -136,7 +136,7 @@ applyMOpt m ("every", MOptI i) = m {mEvery=i}
 applyMOpt m ("on", MOptI i) = m {mDay=i}
 applyMOpt m _ = m -- everything else is unknown
 -- |apply a list of modifiers to a macro (helper function for different keywords)
-applyMOpts = flip $ foldl applyMOpt
+applyMOpts = flip $ foldl' applyMOpt
 
 -- |Construct a parser for a new sugar keyword for transfers (directly translated to transfers).
 -- Expects the keyword name, a base transfer with preset default values and a list of allowed
@@ -227,7 +227,7 @@ mergeAtoms c (AtomT t) = c{cTransfers=merge (cTransfers c) [t']}
   where t' = if cOrigin c == nullDate || tDate t /= nullDate then t else t{tDate=cOrigin c}
 mergeAtoms c (AtomM ms) = if cOrigin c == nullDate
                           then c -- cannot expand macros if no origin specified previously -> ignore
-                          else c{ cTransfers=foldl merge (cTransfers c)
+                          else c{ cTransfers=foldl' merge (cTransfers c)
                                                  $ map (expandMacro (cOrigin c)) ms }
 
 
@@ -243,7 +243,7 @@ parseMoneyConf filename input =
       then Left $ newErrorMessage (SysUnExpect "origin must be first statement in configuration!") (initialPos filename)
       else if numOrigins>1
            then Left $ newErrorMessage (SysUnExpect "multiple Origins found in configuration!") (initialPos filename)
-           else Right $ foldl mergeAtoms nullMoneyConf atoms
+           else Right $ foldl' mergeAtoms nullMoneyConf atoms
 
 -- |accept partial dates on command line and complete missing fields from other date (today's date to be supplied)
 parseArgDate :: Day -> String -> Maybe Day
