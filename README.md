@@ -70,12 +70,14 @@ add "correction transactions", if the macros and the real world drift apart.
 
 Installation
 ------------
-<pre>
+```
 git clone https://github.com/apirogov/MoneyStacks.git
 cd MoneyStacks
 cabal install
-</pre>
+```
 
-<b>Build documentation:</b> <pre>cabal haddock</pre>
+**Build documentation:** `cabal haddock`
 
-<b>Run test suite:</b> <pre>cabal test --show-details=always</pre>
+**Run test suite:** `cabal test --show-details=always`
+
+Make also sure, that `~/.cabal/bin` is in your `$PATH`.
