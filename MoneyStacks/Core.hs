@@ -38,17 +38,16 @@ instance Show Transfer where
 
 -- |Generates both the syntactically correct config file syntax for a transfer
 -- and the pretty printed output for the log (the date up front)
-showTransfer forLog (Transfer v s d dat t) = if v' < 0
-                              then showTransfer forLog (Transfer (Just (-v')) d s dat t)
-                              else if forLog
-                                   then show dat ++ " -> " ++ verb ++ amount ++ from ++ to ++ text -- for human (date first)
-                                   else verb ++ amount ++ from ++ to ++ date ++ text -- for parser (correct syntax)
+showTransfer forLog (Transfer v s d dat t)
+  | v' < 0 =showTransfer forLog (Transfer (Just (-v')) d s dat t)
+  | forLog = show dat ++ " -> " ++ verb ++ amount ++ from ++ to ++ text -- for human (date first)
+  | otherwise = verb ++ amount ++ from ++ to ++ date ++ text -- for parser (correct syntax)
   where v' = fromMaybe 0 v
         verb = if null s == null d then "Move " else if null s then "In " else if null d then "Out " else "Move "
-        amount = if isNothing v then "everything " else (show v')
-        from   = if null s || s=="main" then "" else " from "++ticks s
-        to     = if null d || d=="main" then "" else " to " ++ticks d
-        date   = if nullDate==dat then "" else " on "++show dat
+        amount = if isNothing v then "everything" else (show v')
+        from   = if null s || s=="main" then "" else " from " ++ ticks s
+        to     = if null d || d=="main" then "" else " to " ++ ticks d
+        date   = if nullDate==dat then "" else " on " ++ show dat
         text   = if null t then "" else " : " ++ t
         ticks str  = if forLog then show str else str -- if for human log, make str -> "str" for pretty printing
 
@@ -89,11 +88,8 @@ expandMacro s m
             applyDay date = fromGregorian year month where (year,month,_) = toGregorian date
             incTrans n t  = t {tDate=addGregorianMonthsClip n $ tDate t}
             firstTrans = Transfer {
-                  tVal   = mVal m
-                , tSrc   = mSrc m
-                , tDst   = mDst m
-                , tDate  = applyDay (fromMaybe s $ mStart m) $ fromIntegral $ mDay m
-                , tText  = mText m
+                  tVal  = mVal m, tSrc = mSrc m ,tDst = mDst m, tText = mText m
+                , tDate = applyDay (fromMaybe s $ mStart m) $ fromIntegral $ mDay m
                 }
 
 -- |Merge together sorted lists into one sorted list (Macro expansions and single transfers to one stream)
@@ -125,9 +121,8 @@ applyUntil d t = foldl' applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
 calcStacksUntil :: MoneyConf -> Day -> [Stack]
 calcStacksUntil c d = applyUntil d (cTransfers c)
 
--- |Generate human-readable transfer logs
-showTransfersFromTo :: MoneyConf -> Maybe Day -> Day -> [String]
-showTransfersFromTo c Nothing d = map (showTransfer True) $ takeWhile (\x -> tDate x <= d) $ cTransfers c
-showTransfersFromTo c (Just s) d = map (showTransfer True) $ dropWhile (\x -> tDate x < s)
+-- |Generate human-readable transfer logs for a given config and date range (inclusive)
+showTransfersFromTo :: MoneyConf -> Day -> Day -> [String]
+showTransfersFromTo c s d = map (showTransfer True) $ dropWhile (\x -> tDate x < s)
                                             $ takeWhile (\x -> tDate x <= d) $ cTransfers c
 

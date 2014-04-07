@@ -21,7 +21,7 @@ import System.FilePath.Posix (isValid)
 
 import Data.Time.Clock (utctDay, getCurrentTime)
 import Data.Time.Calendar (showGregorian,toGregorian,fromGregorian)
-import Data.Maybe (isNothing, fromJust, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.List (sort,intersperse)
 import Control.Monad (when, unless,zipWithM_)
 
@@ -81,18 +81,16 @@ evaluate conf "show" [] = do
   evaluate conf "show" [ showGregorian $ fromGregorian y m 1
                        , showGregorian today]
 
--- one date assumed as start date, now as end date
+-- one date assumed as start date, use today as end date
 evaluate conf "show" [start] = do
   today <- getCurrentDay
   evaluate conf "show" [start, showGregorian today]
 
 evaluate conf "show" [start,end] = do
   today <- getCurrentDay
-  let from = parseArgDate today start
-      to   = parseArgDate today end
-  when (any isNothing [from,to]) $
-    error errInvalidDates
-  mapM_ putStrLn $ showTransfersFromTo conf from (fromJust to)
+  case (parseArgDate today start, parseArgDate today end) of
+    (Just from, Just to) -> mapM_ putStrLn $ showTransfersFromTo conf from to
+    _ -> error errInvalidDates
 
 evaluate _ "show" args = error $ errInvalidCommand $ concat $ intersperse " " ("show":args)
 
