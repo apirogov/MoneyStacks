@@ -29,6 +29,8 @@ library
                      , time
                      , filepath
                      , directory
+                     , cassava
+                     , vector
                      , parsec >= 3
   exposed-modules:     MoneyStacks.Application, MoneyStacks.Core, MoneyStacks.Parser
   ghc-options:         -Wall -fno-warn-unused-do-bind -fno-warn-missing-signatures -fno-warn-name-shadowing

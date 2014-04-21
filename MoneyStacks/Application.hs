@@ -1,4 +1,3 @@
-{-# LANGUAGE DoAndIfThenElse #-}
 {-|
 Module      : MoneyStacks.Application
 Description : Command line application interface for MoneyStacks
@@ -25,6 +24,13 @@ import Data.Maybe (mapMaybe)
 import Data.List (sort,intersperse)
 import Control.Monad (when, unless,zipWithM_)
 
+-- |Check whether the given filename is valid and the file exists
+fileExists :: FilePath -> IO Bool
+fileExists filename = do
+  let valid = isValid filename
+  exists <- doesFileExist filename
+  return $ valid && exists
+
 -- |Entry point into the moneystacks command line tool.
 -- Verifies that a valid configuration file is passed, parses it,
 -- checks the passed action and delegates to 'evaluate'
@@ -36,10 +42,9 @@ main = do
     (putStrLn help >> exitSuccess)
 
   let (filename:command:rest) = args
-  let valid = isValid filename
-  exist <- doesFileExist filename
+  exist <- fileExists filename
 
-  unless (valid && exist) $
+  unless exist $
     error $ errInvalidFile filename
   when (command `notElem` ["stacks","show","add"]) $
     error $ errInvalidCommand command
