@@ -58,6 +58,20 @@
 #Limit STACK AMOUNT [start DATE end EDATE every NUMMONTHS on DAYOFMONTH]
 #to: Macro amount full from STACK to main ..
 #    Macro amount AMOUNT from main to STACK ..
+
+#------------------------------------
+# AqBanking CSV integration
+# Merge a transaction file generated from CSV into the stream
+# Everything that is not a transaction in that file will be ignored.
+# This file already must exist when this statement is used, even if it is empty!
+#Import FILENAME
+# transactions containing one of the words will be assigned to specified stack and given description
+#Auto STACK words : Description
+
+# You have to get a fresh csv file from AqBanking yourself.
+# Make sure it contains only transactions for ONE account, sorted by date already.
+# To synchronize with Moneystacks, call:
+# moneystacks CONFIG sync NEW_CSV
 #------------------------------------
 
 #Obligatory origin date (has to be first statement):
@@ -66,6 +80,9 @@ Origin       2014-01-01 #start date
 #Initialize amounts:
 Init 10700$
 Move 6000 to someStack
+
+Import banking.txt
+Auto House Walmart LIDL : shopping
 
 #IN:
 Regular 300$ on 15 : Mum

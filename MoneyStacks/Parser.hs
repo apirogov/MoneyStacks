@@ -11,6 +11,7 @@ Also see <example_config.txt> to see how a configuration file has to look like.
 -}
 module MoneyStacks.Parser (
   parseMoneyConf
+, parseImported
 , parseArgDate
 , parseArgTransfer
 ) where
@@ -25,10 +26,16 @@ import MoneyStacks.Core
 
 -- |Each line of the configuration contains an information atom
 -- which is later to be merged into the MoneyConf
-data ConfAtom = AtomT Transfer | AtomM [Macro] | AtomO Day | AtomEmpty
+data ConfAtom = AtomEmpty | AtomT Transfer | AtomM [Macro] | AtomO Day
+              | AtomI String  -- ^Other filename
+              | AtomA String [String] String -- ^Stack, words, description
                 deriving (Show,Eq)
 isOrigin (AtomO _) = True
 isOrigin _ = False
+isImport (AtomI _) = True
+isImport _ = False
+isTransfer (AtomT _) = True
+isTransfer _ = False
 
 -- |A file is just the sum of its lines
 file = do atoms <- sepEndBy line newline
@@ -53,7 +60,7 @@ emptyline = do
 -- indentation and whitespace does not matter
 statement = wordsep >> choice (fmap try [origin,transfer,macro
                              ,verb_init,verb_move,verb_in,verb_out
-                             ,verb_regular,verb_save,verb_limit])
+                             ,verb_regular,verb_save,verb_limit,abc_import,abc_auto])
 
 origin = do string "Origin"
             wordsep1
@@ -181,6 +188,20 @@ verb_limit = do string "Limit" >> wordsep1
                                                        ,nullMacro{mVal=Just val,mSrc="main",mDst=stack,mText="New Limit "++stack}]
                 <?> "Limit"
 
+abc_import = do string "Import" >> wordsep1
+                filename <- name
+                return $ AtomI filename
+                <?> "Import"
+
+abc_auto = do string "Auto" >> wordsep1
+              stack <- name
+              wordsep1
+              first <- many1 $ noneOf "#\n\r\t :"
+              wordsep1
+              rest <- sepBy name wordsep1
+              let (wlist,desc) = span (/=":") (first:rest)
+              return $ AtomA stack wlist $ unwords (if null desc then desc else tail desc)
+
 ---- Basic lexical helper stuff
 
 -- | reads YYYY-MM-DD, returns a Day
@@ -222,7 +243,9 @@ value = do v <- integer
 -- |Merge one atom of information into a MoneyConf
 mergeAtoms :: MoneyConf -> ConfAtom -> MoneyConf
 mergeAtoms c AtomEmpty = c
-mergeAtoms c (AtomO d) = c{cOrigin=d}
+mergeAtoms c (AtomA s w d) = c{cImportRules=(ImportRule w s d):(cImportRules c)}
+mergeAtoms c (AtomI s) = c{cImportFile=Just s}
+mergeAtoms c (AtomO d) = if cOrigin c == nullDate then c{cOrigin=d} else c
 mergeAtoms c (AtomT t) = c{cTransfers=merge (cTransfers c) [t']}
   where t' = if cOrigin c == nullDate || tDate t /= nullDate then t else t{tDate=cOrigin c}
 mergeAtoms c (AtomM ms) = if cOrigin c == nullDate
@@ -238,12 +261,23 @@ parseMoneyConf filename input =
   Left e -> Left e
   Right atoms -> do
     let numOrigins = length $ filter isOrigin atoms
+        numImports = length $ filter isImport atoms
         firstAtomO = (numOrigins >= 1) && (isOrigin $ head $ filter (/=AtomEmpty) atoms)
     if not firstAtomO
       then Left $ newErrorMessage (SysUnExpect "origin must be first statement in configuration!") (initialPos filename)
-      else if numOrigins>1
-           then Left $ newErrorMessage (SysUnExpect "multiple Origins found in configuration!") (initialPos filename)
+      else if numOrigins>1 || numImports>1
+           then Left $ newErrorMessage (SysUnExpect "multiple Origins or Imports found in configuration!") (initialPos filename)
            else Right $ foldl' mergeAtoms nullMoneyConf atoms
+
+-- |Parse and merge imported transfers from other file into given config
+parseImported :: MoneyConf -> String -> Either ParseError MoneyConf
+parseImported conf input = case cImportFile conf of
+  Nothing -> Right conf
+  Just filename -> case parse file filename input of
+    Left e -> Left e
+    Right atoms -> Right $ conf{cImported = cTransfers
+                                         $ foldl' mergeAtoms conf{cTransfers=[]}
+                                         $ filter isTransfer atoms}
 
 -- |accept partial dates on command line and complete missing fields from other date (today's date to be supplied)
 parseArgDate :: Day -> String -> Maybe Day

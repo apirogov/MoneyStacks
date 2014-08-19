@@ -31,8 +31,9 @@ library
                      , directory
                      , cassava
                      , vector
+                     , bytestring
                      , parsec >= 3
-  exposed-modules:     MoneyStacks.Application, MoneyStacks.Core, MoneyStacks.Parser
+  exposed-modules:     MoneyStacks.Application, MoneyStacks.Core, MoneyStacks.Parser, MoneyStacks.ABCsvImport
   ghc-options:         -Wall -fno-warn-unused-do-bind -fno-warn-missing-signatures -fno-warn-name-shadowing
 
 executable moneystacks

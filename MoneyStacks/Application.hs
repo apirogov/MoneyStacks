@@ -12,6 +12,7 @@ commentary with @some markup@.
 module MoneyStacks.Application where
 import MoneyStacks.Core
 import MoneyStacks.Parser
+import MoneyStacks.ABCsvImport
 
 import System.Exit
 import System.Environment (getArgs)
@@ -42,17 +43,30 @@ main = do
     (putStrLn help >> exitSuccess)
 
   let (filename:command:rest) = args
+      ev c = evaluate c command $ if command/="add" then rest else (filename:rest)
+
   exist <- fileExists filename
 
   unless exist $
     error $ errInvalidFile filename
-  when (command `notElem` ["stacks","show","add"]) $
+  when (command `notElem` ["stacks","show","add","sync"]) $
     error $ errInvalidCommand command
 
   filestr <- readFile filename
   case parseMoneyConf filename filestr of
     Left e     -> error $ show e
-    Right conf -> evaluate conf command $ if command/="add" then rest else (filename:rest)
+    Right conf -> case cImportFile conf of
+      Nothing -> ev conf
+      Just impname -> do
+        exist2 <- fileExists impname
+
+        unless exist2 $
+          error $ errInvalidFile impname
+
+        impstr <- readFile $ impname
+        case parseImported conf impstr of
+          Left e      -> error $ show e
+          Right conf' -> ev conf'
 
 -- |Gets the parsed config, a keyword with the action and the rest of the arguments.
 -- Executes the action or reports an error.
@@ -106,6 +120,18 @@ evaluate _ "add" (filename:rest) = do
     Left e  -> error $ show e
     Right t -> appendFile filename $ show t ++ "\n"
 
+-- update CSV imports from fresh CSV file
+evaluate conf "sync" [filename] = do
+  exists <- fileExists filename
+  unless exists $
+    error "Given file does not exist!"
+  impstr <- readCSVFile filename
+  case parseCsv impstr of
+    Left e -> error $ show e
+    Right imptrans -> writeImportFile $ importTransfers conf imptrans
+
+evaluate _ "sync" _ = error $ errInvalidCommand "sync"
+
 evaluate _ _ _ = error errUnknown
 
 -- |Usage help text
@@ -116,7 +142,8 @@ help = unlines [
       , "stacks [DATE*]:","\tShow stack distribution on given DATEs",""
       , "show [START_DATE [END_DATE]]:","\tShow transfers. default: beginning of month until now",""
       , "add VALUE [from SOURCE_STACK to DEST_STACK : DESCRIPTION_TEXT]:"
-      , "\tAdd a new transfer line to FILE, unset options will be set to default" ]
+      , "\tAdd a new transfer line to FILE, unset options will be set to default",""
+      , "sync CSVFILE:","\tImport an AqBanking CSV file containing transactions"]
 
 -- |returns current Day
 getCurrentDay = getCurrentTime >>= \t -> return $ utctDay t

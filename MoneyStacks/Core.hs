@@ -17,7 +17,16 @@ import Data.List (foldl')
 -- |MoneyConf is the structure generated from a MoneyStacks configuration file by the parser
 data MoneyConf = MoneyConf { cOrigin :: Day -- ^This is the day where the macros get expanded from and also default fallback day
                            , cTransfers :: [Transfer] -- ^This is the (infinite) chronological list of transfers collected by the parser
+                           , cImportFile :: Maybe String -- ^This is the file for automatic banking imports
+                           , cImportRules :: [ImportRule] -- ^List of rules to assign stacks and descriptions on CSV import
+                           , cImported :: [Transfer] -- ^This is the list of imported transfers
                            } deriving (Show,Eq)
+
+-- |A single instance of a word match rule to be applied when importing CSV files
+data ImportRule = ImportRule { rWords :: [String] -- ^Words to be looked for (one is enough for match)
+                             , rStack :: StackName -- ^Name of stack to be assigned
+                             , rAddTxt :: String  -- ^Text appended to description
+                             } deriving (Show,Eq)
 
 type StackName = String -- ^A stack name is just a string
 type Stack = (StackName, Integer) -- ^Must not contain a stack with empty StackName (used internally)
@@ -72,7 +81,7 @@ nullTransfer = Transfer{tVal=Just 0, tSrc="", tDst="", tDate=nullDate, tText=""}
 -- on the 1st day of the month and no specified start or end date (expanded from origin to infinity)
 nullMacro = Macro{mVal=Just 0,mSrc="",mDst="",mDay=1,mStart=Nothing,mEnd=Nothing,mEvery=1,mText=""}
 -- |MoneyConf constructor, defaults the origin as null date and an empty transfer list
-nullMoneyConf = MoneyConf{cOrigin=nullDate,cTransfers=[]}
+nullMoneyConf = MoneyConf{cOrigin=nullDate,cTransfers=[],cImportFile=Nothing,cImportRules=[],cImported=[]}
 
 -- |Generate an list of Transfers from a Macro (needs the origin date as fallback start date)
 -- Does not return transfers before origin, returns empty list with invalid input
@@ -119,10 +128,11 @@ applyUntil d t = foldl' applyTransfer [] $ takeWhile (\x -> tDate x <= d) t
 
 -- |Wrapper around applyUntil to use the MoneyConf built by the parser
 calcStacksUntil :: MoneyConf -> Day -> [Stack]
-calcStacksUntil c d = applyUntil d (cTransfers c)
+calcStacksUntil c d = applyUntil d $ merge (cTransfers c) (cImported c)
 
 -- |Generate human-readable transfer logs for a given config and date range (inclusive)
 showTransfersFromTo :: MoneyConf -> Day -> Day -> [String]
 showTransfersFromTo c s d = map (showTransfer True) $ dropWhile (\x -> tDate x < s)
-                                            $ takeWhile (\x -> tDate x <= d) $ cTransfers c
+                                            $ takeWhile (\x -> tDate x <= d)
+                                            $ merge (cTransfers c) (cImported c)
 

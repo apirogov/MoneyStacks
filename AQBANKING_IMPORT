@@ -1,0 +1,34 @@
+Integration with AQBanking - Mini Guide:
+
+1. Set up account with AQBanking
+
+Example:
+Sparda-Bank Hannover HBCI:
+https://fints.bankingonline.de/fints/FinTs30PinTanHttpGate
+HBCI version 300, kunden/username =kundennummer=kontonummer (userid)
+
+#Initialize
+aqhbci-tool4 adduser -s URL -b BLZ -u USERID -N ANYNAME -t pintan --hbciversion=300
+
+#Get system ID (from bank)
+aqhbci-tool4 getsysid
+
+#List of accounts
+aqhbci-tool4 listaccounts
+
+#TAN-Methods get/set
+#set -b -u -c if multiple accounts
+aqhbci-tool4 listitanmodes
+aqhbci-tool4 setitanmode -m ITANMODE
+
+2. Obtain transfers as CSV
+
+#Request balance
+aqbanking-cli request --balance
+
+#Generate CSV of transactions
+aqbanking-cli request --transactions [-a ACCOUNT] > transaktionen.ctx
+aqbanking-cli listtrans < transaktionen.ctx
+aqbanking-cli request --transactions | aqbanking-cli listtrans #in one step
+
+3. Use moneystacks sync (first at least specify an Import statement in the config)
